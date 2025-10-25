@@ -1,18 +1,134 @@
-<!DOCTYPE html>  
-<html lang="ar">  
-<head>  
-    <meta charset="UTF-8">  
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">  
-    <title>مواقيت الصلاة</title>  
-    <link rel="stylesheet" href="./style.css">  
-    <link rel="manifest" href="./manifest.json">  
-</head>  
-<body>  
-    <div class="container">  
-        <h1>جدول مواقيت الصلاة</h1>  
-        <div id="prayer-times"></div>  
-        <button id="refresh-btn">تحديث</button>  
-    </div>  
-    <script src="./script.js"></script>  
-</body>  
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PraySync - مواقيت الصلاة</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --dark-bg: #2C3930;
+            --card-bg-accent: #3F4F44;
+            --accent-brown: #A27B5C;
+            --light-bg: #DCD7C9;
+            --dark-text-contrast: #2C3930;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Cairo', sans-serif; }
+        html, body { height: 100vh; overflow: hidden; }
+        body { background-color: var(--light-bg); padding: 15px; direction: rtl; display: flex; flex-direction: column; }
+        .container { max-width: 480px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; flex-grow: 1; min-height: 0; }
+        .sync-status-bar { background: linear-gradient(135deg, var(--accent-brown) 0%, #8b694f 100%); color: var(--light-bg); padding: 0 16px; border-radius: 50px; margin-bottom: 15px; display: flex; align-items: center; justify-content: center; position: relative; box-shadow: 0 4px 15px rgba(44, 57, 48, 0.2); font-weight: 600; min-height: 38px; flex-shrink: 0; }
+        .header-icons { display: flex; gap: 8px; position: absolute; left: 20px; top: 50%; transform: translateY(-50%); }
+        .icon-btn { background: transparent; border: none; color: var(--light-bg); width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 16px; transition: all 0.3s; display: flex; align-items: center; justify-content: center; }
+        .icon-btn:hover { transform: scale(1.1); }
+        .sync-status-text { display: flex; align-items: center; gap: 8px; position: absolute; right: 20px; top: 50%; transform: translateY(-50%); font-size: 11px; }
+        .sync-status-bar.error { background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%); }
+        .header-time { text-align: center; }
+        .current-time { font-size: 18px; font-weight: 700; color: var(--light-bg); }
+        .current-date { font-size: 11px; color: var(--light-bg); opacity: 0.8; font-weight: 600; }
+        .next-prayer-card { padding: 20px; text-align: center; margin-bottom: 10px; background: var(--card-bg-accent); border-radius: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); position: relative; flex-shrink: 0; }
+        .app-title { position: absolute; top: 20px; right: 25px; display: flex; align-items: center; gap: 8px; }
+        .app-icon { font-size: 22px; }
+        .app-name { font-size: 12px; font-weight: 700; color: var(--light-bg); opacity: 0.8; }
+        .current-city-display { position: absolute; top: 20px; left: 25px; font-size: 12px; font-weight: 700; color: var(--light-bg); opacity: 0.8; }
+        .next-prayer-label { font-size: 10px; color: var(--accent-brown); margin-bottom: 5px; font-weight: 600; text-transform: uppercase; }
+        .next-prayer-name { font-size: 28px; font-weight: 800; color: var(--light-bg); margin-bottom: 5px; }
+        .next-prayer-time { font-size: 14px; color: var(--accent-brown); margin-bottom: 15px; font-weight: 700; }
+        .time-until { display: flex; justify-content: center; align-items: center; gap: 8px; }
+        .time-value { background: linear-gradient(135deg, var(--accent-brown) 0%, #8b694f 100%); border-radius: 8px; padding: 8px 12px; font-size: 24px; font-weight: 800; color: var(--light-bg); box-shadow: 0 4px 15px rgba(162, 123, 92, 0.4); min-width: 50px; }
+        .time-label { font-size: 10px; color: var(--accent-brown); font-weight: 600; margin-top: 5px; }
+        .prayers-list-container { background: var(--card-bg-accent); border-radius: 30px; padding: 15px 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); flex-grow: 1; min-height: 0; display: flex; flex-direction: column; }
+        .prayers-title { font-size: 13px; font-weight: 800; color: var(--light-bg); margin-bottom: 10px; text-align: center; text-transform: uppercase; letter-spacing: 2px; }
+        #prayersList { flex-grow: 1; display: flex; flex-direction: column; justify-content: space-around; }
+        .prayer-item { background: radial-gradient(circle at top left, rgba(162, 123, 92, 0.05), transparent); border: 1px solid rgba(220, 215, 201, 0.2); border-radius: 16px; padding: 8px 15px; display: flex; align-items: center; transition: all 0.3s; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2); margin-bottom: 5px; }
+        .prayer-item.active { background: linear-gradient(135deg, var(--accent-brown) 0%, #8b694f 100%); transform: scale(1.03); }
+        .prayer-icon { background: linear-gradient(135deg, rgba(220, 215, 201, 0.1) 0%, rgba(162, 123, 92, 0.15) 100%); color: var(--light-bg); width: 38px; height: 38px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 18px; margin-left: 15px; flex-shrink: 0; }
+        .prayer-item.active .prayer-icon { background: var(--light-bg); color: var(--dark-text-contrast); }
+        .prayer-info { flex: 1; }
+        .prayer-item-name { font-size: 15px; font-weight: 800; color: var(--light-bg); margin-bottom: 2px; }
+        .prayer-times { display: flex; gap: 10px; font-size: 10px; color: var(--accent-brown); font-weight: 600; }
+        .prayer-item.active .prayer-item-name, .prayer-item.active .prayer-times { color: var(--light-bg); }
+        .settings-modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.8); z-index: 1000; align-items: center; justify-content: center; padding: 20px; backdrop-filter: blur(10px); }
+        .settings-modal.active { display: flex; }
+        .modal-content { background: linear-gradient(135deg, var(--card-bg-accent) 0%, var(--dark-bg) 100%); border-radius: 30px; padding: 40px; max-width: 520px; width: 100%; max-height: 85vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 35px; }
+        .modal-title { font-size: 28px; font-weight: 800; color: var(--light-bg); }
+        .close-btn { background: var(--light-bg); border: none; font-size: 24px; cursor: pointer; color: var(--dark-text-contrast); width: 42px; height: 42px; border-radius: 50%; transition: all 0.3s; display: flex; align-items: center; justify-content: center; }
+        .section-title { font-size: 20px; font-weight: 800; color: var(--light-bg); margin-bottom: 20px; padding-bottom: 12px; border-bottom: 2px solid rgba(220, 215, 201, 0.2); }
+        .form-label { display: block; font-size: 16px; font-weight: 700; color: var(--accent-brown); margin-bottom: 10px; }
+        .form-select { width: 100%; padding: 14px; border: 2px solid rgba(220, 215, 201, 0.3); border-radius: 12px; font-size: 18px; font-weight: 600; background: rgba(44, 57, 48, 0.2); color: var(--light-bg); }
+        .save-btn { background: linear-gradient(135deg, var(--accent-brown) 0%, #8b694f 100%); color: var(--light-bg); border: none; padding: 20px 40px; border-radius: 18px; font-size: 20px; font-weight: 800; cursor: pointer; width: 100%; transition: all 0.3s; margin-top: 20px; }
+        .loading-spinner { display: inline-block; width: 18px; height: 18px; border: 3px solid rgba(255,255,255,.3); border-radius: 50%; border-top-color: white; animation: spin 1s ease-in-out infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .info-box { background: rgba(162, 123, 92, 0.1); border: 1px solid var(--accent-brown); border-radius: 12px; padding: 15px; margin-top: 15px; font-size: 12px; color: var(--light-bg); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sync-status-bar" id="syncStatusBar">
+            <div class="header-icons">
+                <button class="icon-btn" id="syncBtn">🔄</button>
+                <button class="icon-btn" id="settingsBtn">⚙️</button>
+            </div>
+            <div class="sync-status-text" id="syncStatus"><span>✓</span><span>متصل - آخر تحديث: <span id="lastSync">الآن</span></span></div>
+            <div class="header-time">
+                <div class="current-time" id="currentTime">--:--:--</div>
+                <div class="current-date" id="currentDate">--</div>
+            </div>
+        </div>
+        <div class="next-prayer-card" id="nextPrayerCard">
+            <div class="app-title"><div class="app-icon">🕌</div><div class="app-name">praysync</div></div>
+            <div class="current-city-display" id="currentCity">جدة</div>
+            <div class="next-prayer-label">الصلاة القادمة</div>
+            <div class="next-prayer-name" id="nextPrayerName">--</div>
+            <div class="next-prayer-time" id="nextPrayerTime">--</div>
+            <div class="time-until">
+                <div class="time-unit"><div class="time-value" id="hoursUntil">00</div><div class="time-label">ساعة</div></div>
+                <div style="font-size:24px;font-weight:bold;color:var(--light-bg);">:</div>
+                <div class="time-unit"><div class="time-value" id="minutesUntil">00</div><div class="time-label">دقيقة</div></div>
+            </div>
+        </div>
+        <div class="prayers-list-container">
+            <div class="prayers-title">🕋 مواقيت الصلاة</div>
+            <div id="prayersList">جاري التحميل...</div>
+        </div>
+    </div>
+    <div class="settings-modal" id="settingsModal">
+        <div class="modal-content">
+            <div class="modal-header"><h2 class="modal-title">⚙️ إعدادات التطبيق</h2><button class="close-btn" id="closeSettingsBtn">×</button></div>
+            <div><div class="section-title">📍 الموقع</div><label class="form-label">اختر المدينة</label>
+                <select id="citySelect" class="form-select">
+                    <option value="Jeddah" selected>جدة</option>
+                    <option value="Makkah">مكة المكرمة</option>
+                    <option value="Riyadh">الرياض</option>
+                    <option value="Madinah">المدينة المنورة</option>
+                    <option value="Dammam">الدمام</option>
+                    <option value="Cairo">القاهرة</option>
+                    <option value="Dubai">دبي</option>
+                </select>
+                <button class="save-btn" id="saveSettingsBtn">حفظ التغييرات</button>
+            </div>
+        </div>
+    </div>
+    <script>
+const PRAYER_NAMES={Fajr:'الفجر',Sunrise:'الشروق',Dhuhr:'الظهر',Asr:'العصر',Maghrib:'المغرب',Isha:'العشاء'};
+const PRAYER_ORDER=['Fajr','Dhuhr','Asr','Maghrib','Isha'];
+const PRAYER_ICONS={Fajr:'🌙',Sunrise:'☀️',Dhuhr:'☀️',Asr:'🌤️',Maghrib:'🌙',Isha:'🌙'};
+const FALLBACK_TIMES={Jeddah:{Fajr:'05:15',Sunrise:'06:35',Dhuhr:'12:20',Asr:'15:45',Maghrib:'18:05',Isha:'19:35'},Makkah:{Fajr:'05:10',Sunrise:'06:30',Dhuhr:'12:18',Asr:'15:43',Maghrib:'18:03',Isha:'19:33'},Riyadh:{Fajr:'05:00',Sunrise:'06:20',Dhuhr:'12:10',Asr:'15:35',Maghrib:'17:55',Isha:'19:25'},Madinah:{Fajr:'05:20',Sunrise:'06:40',Dhuhr:'12:25',Asr:'15:50',Maghrib:'18:10',Isha:'19:40'},Dammam:{Fajr:'04:55',Sunrise:'06:15',Dhuhr:'12:05',Asr:'15:30',Maghrib:'17:50',Isha:'19:20'},Cairo:{Fajr:'04:50',Sunrise:'06:10',Dhuhr:'12:00',Asr:'15:25',Maghrib:'17:45',Isha:'19:15'},Dubai:{Fajr:'05:10',Sunrise:'06:30',Dhuhr:'12:20',Asr:'15:45',Maghrib:'18:05',Isha:'19:35'}};
+let prayerData=null,settings={city:'Jeddah',iqamahDurations:{Fajr:25,Dhuhr:20,Asr:20,Maghrib:10,Isha:20}},mainInterval=null;
+const dom={syncStatusBar:document.getElementById('syncStatusBar'),syncStatus:document.getElementById('syncStatus'),lastSync:document.getElementById('lastSync'),syncBtn:document.getElementById('syncBtn'),settingsBtn:document.getElementById('settingsBtn'),currentTime:document.getElementById('currentTime'),currentDate:document.getElementById('currentDate'),nextPrayerCard:document.getElementById('nextPrayerCard'),currentCity:document.getElementById('currentCity'),nextPrayerName:document.getElementById('nextPrayerName'),nextPrayerTime:document.getElementById('nextPrayerTime'),hoursUntil:document.getElementById('hoursUntil'),minutesUntil:document.getElementById('minutesUntil'),prayersList:document.getElementById('prayersList'),settingsModal:document.getElementById('settingsModal'),closeSettingsBtn:document.getElementById('closeSettingsBtn'),saveSettingsBtn:document.getElementById('saveSettingsBtn'),citySelect:document.getElementById('citySelect')};
+function formatTime12Hour(date){return date.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true})}
+function calculatePrayerTimes(){const today=new Date(),cityTimes=FALLBACK_TIMES[settings.city]||FALLBACK_TIMES['Jeddah'],adjustedData={};for(const[key,timeStr]of Object.entries(cityTimes)){const[hours,minutes]=timeStr.split(':').map(Number),prayerDate=new Date(today);prayerDate.setHours(hours,minutes,0,0);adjustedData[key]={time:prayerDate,formatted:formatTime12Hour(prayerDate)}}return adjustedData}
+function renderPrayersList(currentPrayerName=null){if(!prayerData)return;dom.prayersList.innerHTML='';['Fajr','Sunrise','Dhuhr','Asr','Maghrib','Isha'].forEach(name=>{const prayer=prayerData[name];if(!prayer)return;const iqamahDuration=settings.iqamahDurations[name]||0,iqamahTime=new Date(prayer.time.getTime()+iqamahDuration*60*1000),item=document.createElement('div');item.className=`prayer-item ${name===currentPrayerName?'active':''}`;item.innerHTML=`<div class="prayer-icon">${PRAYER_ICONS[name]||'🕌'}</div><div class="prayer-info"><div class="prayer-item-name">${PRAYER_NAMES[name]}</div><div class="prayer-times"><span>الأذان: ${prayer.formatted}</span>${PRAYER_ORDER.includes(name)?`<span>الإقامة: ${formatTime12Hour(iqamahTime)}</span>`:''}</div></div>`;dom.prayersList.appendChild(item)})}
+function updateMainClock(now){dom.currentTime.textContent=now.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',second:'2-digit',hour12:true});dom.currentDate.textContent=now.toLocaleDateString('ar-SA-u-nu-latn',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}
+function showNextPrayerCard(nextPrayer){const now=new Date(),diff=nextPrayer.time.getTime()-now.getTime(),hours=Math.floor(diff/(1000*60*60)),minutes=Math.floor((diff%(1000*60*60))/(1000*60));dom.nextPrayerName.textContent=PRAYER_NAMES[nextPrayer.name];dom.nextPrayerTime.textContent=nextPrayer.formatted;dom.hoursUntil.textContent=String(hours).padStart(2,'0');dom.minutesUntil.textContent=String(minutes).padStart(2,'0')}
+function tick(){const now=new Date();updateMainClock(now);if(!prayerData)return;let nextPrayer=null;const prayerTimesArray=Object.entries(prayerData).filter(([name,data])=>PRAYER_ORDER.includes(name)&&data&&typeof data==='object').map(([name,data])=>({name,time:data.time,formatted:data.formatted})).sort((a,b)=>a.time.getTime()-b.time.getTime());for(const prayer of prayerTimesArray){if(prayer.time>now&&!nextPrayer){nextPrayer=prayer;break}}if(!nextPrayer&&prayerTimesArray.length>0){const fajrTomorrowTime=new Date(prayerTimesArray[0].time);fajrTomorrowTime.setDate(fajrTomorrowTime.getDate()+1);nextPrayer={name:prayerTimesArray[0].name,time:fajrTomorrowTime,formatted:prayerTimesArray[0].formatted}}if(nextPrayer){showNextPrayerCard(nextPrayer);renderPrayersList()}}
+async function syncPrayerTimes(){const selectedCityText=dom.citySelect.options[dom.citySelect.selectedIndex].text;dom.syncStatus.innerHTML=`<div class="loading-spinner"></div> <span>جاري التحميل...</span>`;try{const cityInfo={Jeddah:{city:'Jeddah',country:'Saudi Arabia',method:4},Makkah:{city:'Makkah',country:'Saudi Arabia',method:4},Riyadh:{city:'Riyadh',country:'Saudi Arabia',method:4},Madinah:{city:'Medina',country:'Saudi Arabia',method:4},Dammam:{city:'Dammam',country:'Saudi Arabia',method:4},Cairo:{city:'Cairo',country:'Egypt',method:5},Dubai:{city:'Dubai',country:'United Arab Emirates',method:3}}[settings.city],now=new Date(),url=`https://api.aladhan.com/v1/timingsByCity/${now.getDate()}-${now.getMonth()+1}-${now.getFullYear()}?city=${cityInfo.city}&country=${encodeURIComponent(cityInfo.country)}&method=${cityInfo.method}`,response=await fetch(url),json=await response.json();if(json.code===200&&json.data&&json.data.timings){const adjustedData={},gregorianDate=json.data.date.gregorian.date.split('-').reverse().join('-');for(const key of Object.keys(PRAYER_NAMES)){if(json.data.timings[key]){const time=json.data.timings[key].split(' ')[0],dateStr=`${gregorianDate}T${time}:00`,baseDate=new Date(dateStr);adjustedData[key]={time:baseDate,formatted:formatTime12Hour(baseDate)}}}prayerData=adjustedData;dom.syncStatus.innerHTML=`<span>✓</span> <span>تم التحديث من الإنترنت</span>`}else{throw new Error('API response invalid')}}catch(e){console.log('Using fallback times:',e);prayerData=calculatePrayerTimes();dom.syncStatusBar.classList.add('error');dom.syncStatus.innerHTML=`<span>!</span> <span>أوقات تقريبية</span>`;setTimeout(()=>{dom.syncStatusBar.classList.remove('error');dom.syncStatus.innerHTML=`<span>✓</span> <span>وضع محلي</span>`},3000)}if(dom.currentCity)dom.currentCity.textContent=selectedCityText;dom.lastSync.textContent=formatTime12Hour(new Date());tick()}
+function openSettings(){dom.citySelect.value=settings.city;dom.settingsModal.classList.add('active')}
+function closeSettings(){dom.settingsModal.classList.remove('active')}
+function saveSettings(){const oldCity=settings.city;settings.city=dom.citySelect.value;localStorage.setItem('settings',JSON.stringify(settings));closeSettings();if(settings.city!==oldCity)syncPrayerTimes()}
+async function init(){const savedSettings=localStorage.getItem('settings');if(savedSettings){const parsed=JSON.parse(savedSettings);settings.city=parsed.city||'Jeddah'}dom.citySelect.value=settings.city;if(dom.currentCity){const currentCityName=dom.citySelect.options[dom.citySelect.selectedIndex].text;dom.currentCity.textContent=currentCityName}await syncPrayerTimes();renderPrayersList();tick();mainInterval=setInterval(tick,1000);dom.syncBtn.addEventListener('click',syncPrayerTimes);dom.settingsBtn.addEventListener('click',openSettings);dom.closeSettingsBtn.addEventListener('click',closeSettings);dom.saveSettingsBtn.addEventListener('click',saveSettings)}
+document.addEventListener('DOMContentLoaded',init);
+    </script>
+</body>
 </html>
